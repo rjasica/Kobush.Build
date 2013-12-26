@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
     <metadata>
         <id>Kobush.Build</id>
-        <version>2.1.1.0</version>
+        <version>2.1.2.0</version>
         <authors>Szymon Kobalczyk,Rafał Jasica</authors>
         <owners>Szymon Kobalczyk,Rafał Jasica</owners>
         <licenseUrl>https://raw.github.com/rjasica/Kobush.Build/master/LICENSE</licenseUrl>

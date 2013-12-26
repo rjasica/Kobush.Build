@@ -29,6 +29,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Xml;
 
 using Microsoft.Build.Framework;
@@ -43,12 +44,15 @@ namespace Kobush.Build.Logging
 	/// </summary>
 	public class XmlLogger : Logger
 	{
-		/// <summary>
-		/// Initializes a new instance of the <see cref="XmlLogger"/> class.
-		/// </summary>
-		public XmlLogger()
-		{}
+	    /// <summary>
+	    /// Initializes a new instance of the <see cref="XmlLogger"/> class.
+	    /// </summary>
+	    public XmlLogger()
+	    {
+	        codeRegex = new Regex(@"^(?<code>\w{2}\d{4})\s*:\s*", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+	    }
 
+	    private Regex codeRegex;
         private string outputPath;
 		private XmlTextWriter xmlWriter;
 
@@ -238,8 +242,21 @@ namespace Kobush.Build.Logging
 
         private void LogErrorOrWarning(string messageType, string message, string code, string file, int lineNumber, int columnNumber, DateTime timestamp)
         {
+            string messageCode = code;
+
+            if(string.IsNullOrWhiteSpace(code))
+            {
+                message = codeRegex.Replace(
+                    message,
+                    m =>
+                    {
+                        messageCode = m.Groups["code"].Value;
+                        return string.Empty;
+                    });
+            }
+
 			xmlWriter.WriteStartElement(messageType);
-            SetAttribute(XmlLoggerAttributes.Code, code);
+            SetAttribute(XmlLoggerAttributes.Code, messageCode);
 
             SetAttribute(XmlLoggerAttributes.File, string.IsNullOrEmpty(file) ? "" : Path.GetFullPath(file));
             SetAttribute(XmlLoggerAttributes.LineNumber, lineNumber);
