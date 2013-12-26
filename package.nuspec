@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+    <metadata>
+        <id>Kobush.Build</id>
+        <version>2.1.1.0</version>
+        <authors>Szymon Kobalczyk,Rafał Jasica</authors>
+        <owners>Szymon Kobalczyk,Rafał Jasica</owners>
+        <licenseUrl>https://raw.github.com/rjasica/Kobush.Build/master/LICENSE</licenseUrl>
+        <projectUrl>https://github.com/rjasica/Kobush.Build</projectUrl>
+        <iconUrl>https://raw.github.com/rjasica/Kobush.Build/master/package_icon.png</iconUrl>
+        <requireLicenseAcceptance>false</requireLicenseAcceptance>
+        <description>Xml logger for msbuild</description>
+        <tags>xml log logger msbuild</tags>
+    <dependencies/>
+    </metadata>
+    <files>
+        <file src="bin\release\Kobush.Build.dll" target="tools" />
+    </files>
+</package>
