@@ -39,70 +39,71 @@ using System.IO;
 
 namespace Kobush.Build.Logging
 {
-	/// <summary>
-	/// Implements an XML logger for MSBuild.
-	/// </summary>
-	public class XmlLogger : Logger
-	{
-	    /// <summary>
-	    /// Initializes a new instance of the <see cref="XmlLogger"/> class.
-	    /// </summary>
-	    public XmlLogger()
-	    {
-	        codeRegex = new Regex(@"^(?<code>\w{2}\d{4})\s*:\s*", RegexOptions.Compiled | RegexOptions.CultureInvariant);
-	    }
+    /// <summary>
+    /// Implements an XML logger for MSBuild.
+    /// </summary>
+    public class XmlLogger : Logger
+    {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="XmlLogger"/> class.
+        /// </summary>
+        public XmlLogger()
+        {
+            codeRegex = new Regex(@"^(?<code>\w{2}\d{4})\s*:\s*", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        }
 
-	    private Regex codeRegex;
+        private readonly Regex codeRegex;
         private string outputPath;
-		private XmlTextWriter xmlWriter;
+        private XmlTextWriter xmlWriter;
 
-		/// <summary>
-		/// Initializes the logger by attaching events and parsing command line.
-		/// </summary>
-		/// <param name="eventSource">The event source.</param>
-		public override void Initialize(IEventSource eventSource)
-		{
+        /// <summary>
+        /// Initializes the logger by attaching events and parsing command line.
+        /// </summary>
+        /// <param name="eventSource">The event source.</param>
+        public override void Initialize(IEventSource eventSource)
+        {
             outputPath = this.Parameters;
 
-			InitializeLogFile();
+            InitializeLogFile();
 
-            // attach only to events required in current log verbosity
-            eventSource.ErrorRaised += new BuildErrorEventHandler(eventSource_ErrorRaised);
-            eventSource.WarningRaised += new BuildWarningEventHandler(eventSource_WarningRaised);
+            AttachToRequiredEvents(eventSource);
+        }
 
-            eventSource.BuildStarted += new BuildStartedEventHandler(eventSource_BuildStartedHandler);
-            eventSource.BuildFinished += new BuildFinishedEventHandler(eventSource_BuildFinishedHandler);
+        private void AttachToRequiredEvents(IEventSource eventSource)
+        {
+            eventSource.ErrorRaised += eventSource_ErrorRaised;
+            eventSource.WarningRaised += eventSource_WarningRaised;
 
-            if (Verbosity != LoggerVerbosity.Quiet) // minimal and above
-			{
-                eventSource.MessageRaised += new BuildMessageEventHandler(eventSource_MessageHandler);
-                eventSource.CustomEventRaised += new CustomBuildEventHandler(eventSource_CustomBuildEventHandler);
+            eventSource.BuildStarted += eventSource_BuildStartedHandler;
+            eventSource.BuildFinished += eventSource_BuildFinishedHandler;
 
-                eventSource.ProjectStarted += new ProjectStartedEventHandler(eventSource_ProjectStartedHandler);
-                eventSource.ProjectFinished += new ProjectFinishedEventHandler(eventSource_ProjectFinishedHandler);
+            if (Verbosity == LoggerVerbosity.Quiet) return;
 
-                if (Verbosity != LoggerVerbosity.Minimal) // normal and above
-				{
-                    eventSource.TargetStarted += new TargetStartedEventHandler(eventSource_TargetStartedHandler);
-                    eventSource.TargetFinished += new TargetFinishedEventHandler(eventSource_TargetFinishedHandler);
+            eventSource.MessageRaised += eventSource_MessageHandler;
+            eventSource.CustomEventRaised += eventSource_CustomBuildEventHandler;
 
-                    if (Verbosity != LoggerVerbosity.Normal) // only detailed and diagnostic
-					{
-                        eventSource.TaskStarted += new TaskStartedEventHandler(eventSource_TaskStartedHandler);
-                        eventSource.TaskFinished += new TaskFinishedEventHandler(eventSource_TaskFinishedHandler);
-					}
-				}
-			}
-		}
+            eventSource.ProjectStarted += eventSource_ProjectStartedHandler;
+            eventSource.ProjectFinished += eventSource_ProjectFinishedHandler;
 
-		public override void Shutdown()
-		{
-			FinilizeLogFile();
-		}
+            if (Verbosity == LoggerVerbosity.Minimal) return;
 
-		public void InitializeLogFile()
-		{
-            if (!String.IsNullOrEmpty(outputPath))
+            eventSource.TargetStarted += eventSource_TargetStartedHandler;
+            eventSource.TargetFinished += eventSource_TargetFinishedHandler;
+
+            if (Verbosity == LoggerVerbosity.Normal) return;
+
+            eventSource.TaskStarted += eventSource_TaskStartedHandler;
+            eventSource.TaskFinished += eventSource_TaskFinishedHandler;
+        }
+
+        public override void Shutdown()
+        {
+            FinalizeLogFile();
+        }
+
+        public void InitializeLogFile()
+        {
+            if (!string.IsNullOrEmpty(outputPath))
             {
                 try
                 {
@@ -110,7 +111,7 @@ namespace Kobush.Build.Logging
                 }
                 catch (IOException e)
                 {
-                    string message = "XmlLogger: An exception was thrown while creating output file. Did you specify a valid filename?";
+                    const string message = "XmlLogger: An exception was thrown while creating output file. Did you specify a valid filename?";
                     Console.WriteLine(message);
                     throw new InvalidOperationException(message, e);
                 }
@@ -120,62 +121,62 @@ namespace Kobush.Build.Logging
                 xmlWriter = new XmlTextWriter(Console.Out);
             }
 
-			xmlWriter.Formatting = Formatting.Indented;
+            xmlWriter.Formatting = Formatting.Indented;
 
-			// Write the start tag for the root node
-			xmlWriter.WriteStartDocument();
-			xmlWriter.WriteStartElement(XmlLoggerElements.Build);
-			xmlWriter.Flush();
-		}
+            // Write the start tag for the root node
+            xmlWriter.WriteStartDocument();
+            xmlWriter.WriteStartElement(XmlLoggerElements.Build);
+            xmlWriter.Flush();
+        }
 
-		public void FinilizeLogFile()
-		{
-			// this should close the corresponding WriteStartElement in InitializeLogger
-			// before closing the writer down itself
-			xmlWriter.Close();
-		}
+        public void FinalizeLogFile()
+        {
+            // this should close the corresponding WriteStartElement in InitializeLogger
+            // before closing the writer down itself
+            xmlWriter.Close();
+        }
 
-		#region Event Handlers
+        #region Event Handlers
 
-		private void eventSource_BuildStartedHandler(object sender, BuildStartedEventArgs e)
-		{
-			LogStageStarted(XmlLoggerElements.Build, "", "", e.Timestamp);
-		}
+        private void eventSource_BuildStartedHandler(object sender, BuildStartedEventArgs e)
+        {
+            LogStageStarted(XmlLoggerElements.Build, string.Empty, string.Empty, e.Timestamp);
+        }
 
-		private void eventSource_BuildFinishedHandler(object sender, BuildFinishedEventArgs e)
-		{
-			LogStageFinished(e.Succeeded, e.Timestamp);
-		}
+        private void eventSource_BuildFinishedHandler(object sender, BuildFinishedEventArgs e)
+        {
+            LogStageFinished(e.Timestamp);
+        }
 
-		private void eventSource_ProjectStartedHandler(object sender, ProjectStartedEventArgs e)
-		{
+        private void eventSource_ProjectStartedHandler(object sender, ProjectStartedEventArgs e)
+        {
             LogStageStarted(XmlLoggerElements.Project, e.TargetNames, e.ProjectFile, e.Timestamp);
-		}
+        }
 
-		private void eventSource_ProjectFinishedHandler(object sender, ProjectFinishedEventArgs e)
-		{
-			LogStageFinished(e.Succeeded, e.Timestamp);
-		}
+        private void eventSource_ProjectFinishedHandler(object sender, ProjectFinishedEventArgs e)
+        {
+            LogStageFinished(e.Timestamp);
+        }
 
-		private void eventSource_TargetStartedHandler(object sender, TargetStartedEventArgs e)
-		{
-            LogStageStarted(XmlLoggerElements.Target, e.TargetName, "", e.Timestamp);
-		}
+        private void eventSource_TargetStartedHandler(object sender, TargetStartedEventArgs e)
+        {
+            LogStageStarted(XmlLoggerElements.Target, e.TargetName, string.Empty, e.Timestamp);
+        }
 
-		private void eventSource_TargetFinishedHandler(object sender, TargetFinishedEventArgs e)
-		{
-			LogStageFinished(e.Succeeded, e.Timestamp);
-		}
+        private void eventSource_TargetFinishedHandler(object sender, TargetFinishedEventArgs e)
+        {
+            LogStageFinished(e.Timestamp);
+        }
 
-		private void eventSource_TaskStartedHandler(object sender, TaskStartedEventArgs e)
-		{
+        private void eventSource_TaskStartedHandler(object sender, TaskStartedEventArgs e)
+        {
             LogStageStarted(XmlLoggerElements.Task, e.TaskName, e.ProjectFile, e.Timestamp);
-		}
+        }
 
-		private void eventSource_TaskFinishedHandler(object sender, TaskFinishedEventArgs e)
-		{
-			LogStageFinished(e.Succeeded, e.Timestamp);
-		}
+        private void eventSource_TaskFinishedHandler(object sender, TaskFinishedEventArgs e)
+        {
+            LogStageFinished(e.Timestamp);
+        }
 
         void eventSource_WarningRaised(object sender, BuildWarningEventArgs e)
         {
@@ -187,62 +188,62 @@ namespace Kobush.Build.Logging
             LogErrorOrWarning(XmlLoggerElements.Error, e.Message, e.Code, e.File, e.LineNumber, e.ColumnNumber, e.Timestamp);
         }
 
-		private void eventSource_MessageHandler(object sender, BuildMessageEventArgs e)
-		{
+        private void eventSource_MessageHandler(object sender, BuildMessageEventArgs e)
+        {
             LogMessage(XmlLoggerElements.Message, e.Message, e.Importance, e.Timestamp);
         }
 
-		private void eventSource_CustomBuildEventHandler(object sender, CustomBuildEventArgs e)
-		{
+        private void eventSource_CustomBuildEventHandler(object sender, CustomBuildEventArgs e)
+        {
             LogMessage(XmlLoggerElements.Custom, e.Message, MessageImportance.Normal, e.Timestamp);
-		}
+        }
 
-		#endregion
+        #endregion
 
-		#region Logging
+        #region Logging
 
-		// stores stage start times used to calculate stage duration
-		Stack<DateTime> stageDurationStack = new Stack<DateTime>();
+        // stores stage start times used to calculate stage duration
+        readonly Stack<DateTime> stageDurationStack = new Stack<DateTime>();
 
-		private void LogStageStarted(string elementName, string stageName, string file, DateTime timeStamp)
-		{
-			// use the default root for the build element; otherwise start new element
-			if (elementName != XmlLoggerElements.Build)
-			{
-				xmlWriter.WriteStartElement(elementName);
-			}
+        private void LogStageStarted(string elementName, string stageName, string file, DateTime timeStamp)
+        {
+            // use the default root for the build element; otherwise start new element
+            if (elementName != XmlLoggerElements.Build)
+            {
+                xmlWriter.WriteStartElement(elementName);
+            }
 
             SetAttribute(XmlLoggerAttributes.Name, stageName);
             SetAttribute(XmlLoggerAttributes.File, String.IsNullOrEmpty(file) ? "" : Path.GetFullPath(file));
 
-			if (elementName == XmlLoggerElements.Build || Verbosity == LoggerVerbosity.Diagnostic)
+            if (elementName == XmlLoggerElements.Build || Verbosity == LoggerVerbosity.Diagnostic)
             {
                 SetAttribute(XmlLoggerAttributes.StartTime, timeStamp);
             }
-			stageDurationStack.Push(timeStamp);
+            stageDurationStack.Push(timeStamp);
 
-			xmlWriter.Flush();
-		}
+            xmlWriter.Flush();
+        }
 
-		private void LogStageFinished(bool succeded, DateTime timeStamp)
-		{
+        private void LogStageFinished(DateTime timeStamp)
+        {
             // log duration of current stage
-			DateTime startTime = stageDurationStack.Pop();
-			if (stageDurationStack.Count == 0 || Verbosity == LoggerVerbosity.Diagnostic)
-			{
-				TimeSpan duration = timeStamp - startTime;
-				xmlWriter.WriteStartElement(XmlLoggerElements.Duration);
-				xmlWriter.WriteValue(duration.TotalSeconds.ToString("g2",CultureInfo.InvariantCulture));
-				xmlWriter.WriteEndElement();
-			}
+            var startTime = stageDurationStack.Pop();
+            if (stageDurationStack.Count == 0 || Verbosity == LoggerVerbosity.Diagnostic)
+            {
+                var duration = timeStamp - startTime;
+                xmlWriter.WriteStartElement(XmlLoggerElements.Duration);
+                xmlWriter.WriteValue(duration.TotalSeconds.ToString("g2",CultureInfo.InvariantCulture));
+                xmlWriter.WriteEndElement();
+            }
 
-			xmlWriter.WriteEndElement();
-			xmlWriter.Flush();
-		}
+            xmlWriter.WriteEndElement();
+            xmlWriter.Flush();
+        }
 
         private void LogErrorOrWarning(string messageType, string message, string code, string file, int lineNumber, int columnNumber, DateTime timestamp)
         {
-            string messageCode = code;
+            var messageCode = code;
 
             if(string.IsNullOrWhiteSpace(code))
             {
@@ -255,7 +256,7 @@ namespace Kobush.Build.Logging
                     });
             }
 
-			xmlWriter.WriteStartElement(messageType);
+            xmlWriter.WriteStartElement(messageType);
             SetAttribute(XmlLoggerAttributes.Code, messageCode);
 
             SetAttribute(XmlLoggerAttributes.File, string.IsNullOrEmpty(file) ? "" : Path.GetFullPath(file));
@@ -270,11 +271,11 @@ namespace Kobush.Build.Logging
              // XML that will cause the parser to fail.
             WriteMessage(message, code != "Properties");
 
-			xmlWriter.WriteEndElement();
+            xmlWriter.WriteEndElement();
         }
 
-		private void LogMessage(string messageType, string message, MessageImportance importance, DateTime timestamp)
-		{
+        private void LogMessage(string messageType, string message, MessageImportance importance, DateTime timestamp)
+        {
             if (importance == MessageImportance.Low
                 && Verbosity != LoggerVerbosity.Detailed
                 && Verbosity != LoggerVerbosity.Diagnostic)
@@ -285,119 +286,82 @@ namespace Kobush.Build.Logging
                     || Verbosity == LoggerVerbosity.Quiet))
                 return;
 
-			xmlWriter.WriteStartElement(messageType);
+            xmlWriter.WriteStartElement(messageType);
 
-			SetAttribute(XmlLoggerAttributes.Importance, importance);
+            SetAttribute(XmlLoggerAttributes.Importance, importance);
 
             if (Verbosity == LoggerVerbosity.Diagnostic)
-				SetAttribute(XmlLoggerAttributes.TimeStamp, timestamp);
+            {
+                SetAttribute(XmlLoggerAttributes.TimeStamp, timestamp);
+            }
 
             WriteMessage(message, false);
 
-			xmlWriter.WriteEndElement();
-		}
+            xmlWriter.WriteEndElement();
+        }
 
         private void WriteMessage(string message, bool escapeLtGt)
         {
-            if (!string.IsNullOrEmpty(message))
+            if (string.IsNullOrEmpty(message))
             {
-                // replace xml entities
-                string text = message.Replace("&", "&amp;");
-
-                if (escapeLtGt)
-                {
-					text = text.Replace("<", "&lt;");
-					text = text.Replace(">", "&gt;");
-                }
-				xmlWriter.WriteCData(text);
+                return;
             }
+            
+            // replace xml entities
+            var text = message.Replace("&", "&amp;");
+
+            if (escapeLtGt)
+            {
+                text = text.Replace("<", "&lt;");
+                text = text.Replace(">", "&gt;");
+            }
+            xmlWriter.WriteCData(text);
         }
 
-		private void SetAttribute(string name, object value)
-		{
-			if (value == null)
-				return;
+        private void SetAttribute(string name, object value)
+        {
+            if (value == null)
+                return;
 
-			Type t = value.GetType();
-			if (t == typeof(int))
-			{
-				if (Int32.Parse(value.ToString()) > 0)	//????
-				{
-					xmlWriter.WriteAttributeString(name, value.ToString());
-				}
-			}
-			else if (t == typeof(DateTime))
-			{
-				DateTime dateTime = (DateTime)value;
-				xmlWriter.WriteAttributeString(name, dateTime.ToString("G", DateTimeFormatInfo.InvariantInfo));
-			}
+            var t = value.GetType();
+            if (t == typeof(int))
+            {
+                if (Int32.Parse(value.ToString()) > 0)    //????
+                {
+                    xmlWriter.WriteAttributeString(name, value.ToString());
+                }
+            }
+            else if (t == typeof(DateTime))
+            {
+                var dateTime = (DateTime)value;
+                xmlWriter.WriteAttributeString(name, dateTime.ToString("G", DateTimeFormatInfo.InvariantInfo));
+            }
             else if (t == typeof(TimeSpan))
             {
                 // format TimeSpan to show only integral seconds
-                double seconds = ((TimeSpan)value).TotalSeconds;
-                TimeSpan whole = TimeSpan.FromSeconds(Math.Truncate(seconds));
-				xmlWriter.WriteAttributeString(name, whole.ToString());
+                var seconds = ((TimeSpan)value).TotalSeconds;
+                var whole = TimeSpan.FromSeconds(Math.Truncate(seconds));
+                xmlWriter.WriteAttributeString(name, whole.ToString());
             }
-            else if (t == typeof(Boolean))
+            else if (t == typeof(bool))
             {
-				xmlWriter.WriteAttributeString(name, value.ToString().ToLower());
+                xmlWriter.WriteAttributeString(name, value.ToString().ToLower());
             }
             else if (t == typeof(MessageImportance))
             {
-                MessageImportance importance = (MessageImportance)value;
-				xmlWriter.WriteAttributeString(name, importance.ToString().ToLower());
+                var importance = (MessageImportance)value;
+                xmlWriter.WriteAttributeString(name, importance.ToString().ToLower());
             }
             else
             {
-                string text = value.ToString();
-                if (!String.IsNullOrEmpty(text))
+                var text = value.ToString();
+                if (!string.IsNullOrEmpty(text))
                 {
                     xmlWriter.WriteAttributeString(name, text);
                 }
             }
-		}
+        }
 
-		#endregion
-
-		#region Constants
-
-		internal sealed class XmlLoggerElements
-		{
-			private XmlLoggerElements()
-			{ }
-
-			public const string Build = "msbuild";
-			public const string Error = "error";
-			public const string Warning = "warning";
-			public const string Message = "message";
-			public const string Project = "project";
-			public const string Target = "target";
-			public const string Task = "task";
-			public const string Custom = "custom";
-			public const string Failure = "failure";
-			public const string Duration = "duration";
-		}
-
-		internal sealed class XmlLoggerAttributes
-		{
-			private XmlLoggerAttributes()
-			{ }
-
-			public const string Name = "name";
-			public const string File = "file";
-			public const string StartTime = "startTime";
-            public const string ElapsedTime = "elapsedTime";
-			public const string TimeStamp = "timeStamp";
-			public const string Code = "code";
-			public const string LineNumber = "line";
-			public const string ColumnNumber = "column";
-			public const string Importance = "level";
-			public const string Processor = "processor";
-			public const string HelpKeyword = "help";
-			public const string SubCategory = "category";
-			public const string Success = "success";
-		}
-
-		#endregion
-	}
+        #endregion
+    }
 }
